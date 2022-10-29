@@ -78,7 +78,9 @@ services:
     restart: unless-stopped
     volumes:
       - ./confluence:/var/atlassian/application-data/confluence:rw
-      - ./configuration/mysql-connector-java-8.0.21.jar:/opt/atlassian/confluence/WEB-INF/lib/mysql-connector-java-8.0.21.jar:rw
+      # - ./configuration/mysql-connector-java-8.0.21.jar:/opt/atlassian/confluence/WEB-INF/lib/mysql-connector-java-8.0.21.jar:rw
+      - ./configuration/mysql-connector-java-8.0.21.jar:/var/atlassian/application-data/confluence/lib/mysql-connector-java-8.0.21.jar:rw
+      - ./configuration/mysql-connector-java-8.0.21.jar:/opt/atlassian/confluence/lib/mysql-connector-java-8.0.21.jar:rw
       - ./confluence/logs:/opt/atlassian/confluence/logs:rw
     labels:
       - traefik.enable=true
