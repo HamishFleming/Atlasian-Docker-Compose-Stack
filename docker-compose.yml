@@ -49,17 +49,19 @@ services:
     container_name: Confluence
     env_file: .env
     environment:
-      - ATL_DB_DRIVER=com.mysql.jdbc.Driver
+      # - ATL_DB_DRIVER=com.mysql.jdbc.Driver
       # - JDBC_URL=jdbc:mysql://mysql:3306/confluencedb?useUnicode=true&characterEncoding=UTF8&sessionVariables=default_storage_engine=InnoDB&autoReconnect=true&useSSL=false
       - ATL_DB_TYPE=mysql
-      - ATL_JDBC_PASSWORD=${PASSWORD}
-      - ATL_JDBC_URL=jdbc:mysql://localhost:3306/confluencedb?useUnicode=true&autoReconnect=true&useSSL=false
+      - ATL_DB_DRIVER=com.mysql.cj.jdbc.Driver
+      - ATL_DB_SCHEMA_NAME=jiradb
+      - ATL_JDBC_URL=jdbc:mysql://localhost:3306/confluencedb
       - ATL_JDBC_USER=atlassian
-      - ATL_PROXY_NAME=confluence.${DOMAIN_ROOT:-.localhost}
-      - ATL_PROXY_PORT=443
-      - ATL_TOMCAT_PORT=8090
-      - ATL_TOMCAT_SCHEME=http
-      - ATL_TOMCAT_SECURE=false
+      - ATL_JDBC_PASSWORD=${PASSWORD}
+      # - ATL_PROXY_NAME=confluence.${DOMAIN_ROOT:-.localhost}
+      # - ATL_PROXY_PORT=443
+      # - ATL_TOMCAT_PORT=8090
+      # - ATL_TOMCAT_SCHEME=http
+      # - ATL_TOMCAT_SECURE=false
     depends_on:
       - mysql
     healthcheck:
@@ -78,9 +80,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./confluence:/var/atlassian/application-data/confluence:rw
-      # - ./configuration/mysql-connector-java-8.0.21.jar:/opt/atlassian/confluence/WEB-INF/lib/mysql-connector-java-8.0.21.jar:rw
-      - ./configuration/mysql-connector-java-8.0.21.jar:/var/atlassian/application-data/confluence/lib/mysql-connector-java-8.0.21.jar:rw
-      - ./configuration/mysql-connector-java-8.0.21.jar:/opt/atlassian/confluence/lib/mysql-connector-java-8.0.21.jar:rw
+      - ./configuration/mysql-connector-java-8.0.21.jar:/opt/atlassian/confluence/confluence/WEB-INF/lib/mysql-connector-java-8.0.21.jar
       - ./confluence/logs:/opt/atlassian/confluence/logs:rw
     labels:
       - traefik.enable=true
@@ -113,8 +113,8 @@ services:
     networks:
       - traefik
       - default
-    # ports:
-      # - '88:8080'
+    ports:
+      - '88:8080'
     restart: unless-stopped
     volumes:
       - ./jira:/var/atlassian/application-data/jira:rw
@@ -126,7 +126,7 @@ services:
       - "traefik.http.routers.jira.rule=Host(`jira.${DOMAIN_ROOT:-.localhost}`)"
       - "traefik.http.routers.jira.tls=true"
       - "traefik.http.routers.jira.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.jira.entrypoints=web,websecure"
+      - "traefik.http.routers.jira.entrypoints=websecure"
       - "traefik.http.routers.jira.service=jira-web"
       - "traefik.http.services.jira-web.loadbalancer.server.port=443"
 
@@ -141,11 +141,12 @@ services:
       start_period: 1m
       timeout: 10s
     image: 'mysql:latest'
-    # ports:
-      # - '3306:3306'
+    ports:
+      - '3306:3306'
     restart: unless-stopped
     networks:
       - default
+    command: [mysqld, --character-set-server=utf8, --collation-server=utf8_bin, --default-storage-engine=INNODB, --max_allowed_packet=256M, --innodb_log_file_size=2GB, --transaction-isolation=READ-COMMITTED, --binlog_format=row]
     volumes:
       - ./mysql:/var/lib/mysql:rw
       - ./configuration/conf.d/mysql.cnf:/etc/mysql/conf.d/my.cnf:rw
