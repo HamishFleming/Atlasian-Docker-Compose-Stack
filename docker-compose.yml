@@ -125,8 +125,8 @@ services:
       - '3306:3306'
     restart: unless-stopped
     volumes:
-      - /docker/mysql:/var/lib/mysql:rw
-      - /docker/configuration/conf.d/mysql.cnf:/etc/mysql/conf.d/my.cnf:rw
+      - ./mysql:/var/lib/mysql:rw
+      - ./configuration/conf.d/mysql.cnf:/etc/mysql/conf.d/my.cnf:rw
 
 networks:
   default:
