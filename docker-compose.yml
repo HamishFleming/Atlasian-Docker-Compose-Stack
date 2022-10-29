@@ -135,6 +135,10 @@ services:
     env_file: .env
     environment:
       - MYSQL_ROOT_PASSWORD=${PASSWORD}
+      - MYSQL_ROOT_USER=root
+      #- MYSQL_DATABASE=jiradb
+      - MYSQL_USER=atlassian
+      - MYSQL_PASSWORD=${PASSWORD}
     healthcheck:
       test: '/usr/bin/mysql --user=healthcheck --password=healthcheck --execute "SHOW DATABASES;"'
       interval: 1m
