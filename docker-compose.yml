@@ -19,22 +19,28 @@ services:
       start_period: 10m
       timeout: 10s
     image: 'atlassian/bitbucket:latest'
-    network_mode: bridge
-    ports:
-      - '7990:7990'
-      - '7999:7999'
+    #network_mode: bridge
+    # ports:
+    #   - '7990:7990'
+    #   - '7999:7999'
     restart: unless-stopped
     volumes:
       - ./bitbucket:/var/atlassian/application-data/bitbucket:rw
       - ./configuration/mysql-connector-java-5.1.48-bin.jar:/var/atlassian/application-data/bitbucket/lib/mysql-connector-java-5.1.48-bin.jar:rw
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.bitbucket.rule=Host(`bitbucket.${DOMAIN_ROOT:-.localhost}`)
-      - traefik.http.routers.bitbucket.service=bitbucket
-      #- traefik.http.routers.bitbucket.entrypoints=${SCHEME:-websecure}
-      #- traefik.http.routers.bitbucket.tls.certresolver=letsencrypt
-      #- traefik.http.routers.bitbucket.tls=true
-      #- traefik.http.services.bitbucket.loadbalancer.server.port=8080
+      - "traefik.enable=true"
+      # Web
+      - "traefik.http.routers.bitbucket.rule=Host(`bitbucket.${DOMAIN_ROOT:-.localhost}`)"
+      - "traefik.http.routers.bitbucket.tls=true"
+      - "traefik.http.routers.bitbucket.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.bitbucket.entrypoints=web,websecure"
+      - "traefik.http.routers.bitbucket.service=bitbucket-web"
+      - "traefik.http.services.bitbucket-web.loadbalancer.server.port=7990"
+      # SSH
+      - "traefik.tcp.routers.bitbucket-ssh.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.bitbucket-ssh.entrypoints=bitbucket-ssh"
+      - "traefik.tcp.routers.bitbucket-ssh.service=bitbucket-ssh"
+      - "traefik.tcp.services.bitbucket-ssh.loadbalancer.server.port=7999"
 
   atlassian-confluence:
     container_name: Confluence
@@ -83,11 +89,11 @@ services:
       - ATL_JDBC_URL=jdbc:mysql://mysql:3306/jiradb?useUnicode=true&autoReconnect=true&useSSL=false
       - ATL_JDBC_USER=atlassian
       - ATL_PROXY_NAME=jira.${DOMAIN_ROOT:-.localhost}
-      - ATL_PROXY_PORT=88
-      #- ATL_PROXY_PORT=443
+      # - ATL_PROXY_PORT=88
+      - ATL_PROXY_PORT=443
       - ATL_TOMCAT_PORT=8080
-      - ATL_TOMCAT_SCHEME=http
-      - ATL_TOMCAT_SECURE=false
+      - ATL_TOMCAT_SCHEME=https
+      - ATL_TOMCAT_SECURE=true
     depends_on:
       - mysql
     healthcheck:
@@ -97,19 +103,24 @@ services:
       timeout: 10s
     image: 'atlassian/jira-software:latest'
     network_mode: bridge
-    ports:
-      - '88:8080'
+    networks:
+      - traefik
+    # ports:
+      # - '88:8080'
     restart: unless-stopped
     volumes:
       - ./jira:/var/atlassian/application-data/jira:rw
       - ./configuration/mysql-connector-java-8.0.21.jar:/opt/atlassian/jira/lib/mysql-connector-java-8.0.21.jar:rw
       - ./jira/log:/opt/atlassian/jira/logs:rw
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.jira.rule=Host(`jira.${DOMAIN_ROOT:-.localhost}`)
-      - traefik.http.routers.jira.service=jira
-      - traefik.http.routers.bitbucket.entrypoints=web
-      - traefik.http.services.bitbucket.loadbalancer.server.port=88
+      - "traefik.enable=true"
+      # Web
+      - "traefik.http.routers.jira.rule=Host(`jira.${DOMAIN_ROOT:-.localhost}`)"
+      - "traefik.http.routers.jira.tls=true"
+      - "traefik.http.routers.jira.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.jira.entrypoints=web,websecure"
+      - "traefik.http.routers.jira.service=jira-web"
+      - "traefik.http.services.jira-web.loadbalancer.server.port=443"
 
   mysql:
     container_name: MySQL
