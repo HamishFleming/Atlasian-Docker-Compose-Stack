@@ -154,6 +154,8 @@ services:
     volumes:
       - ./mysql:/var/lib/mysql:rw
       - ./configuration/conf.d/mysql.cnf:/etc/mysql/conf.d/my.cnf:rw
+      - ./configuration/mysql:/docker-entrypoint-initdb.d
+
 
 networks:
   default:
