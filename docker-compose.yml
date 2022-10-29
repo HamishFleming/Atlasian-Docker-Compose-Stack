@@ -5,7 +5,7 @@ services:
     env_file: .env
     environment:
       - JDBC_PASSWORD=${PASSWORD}
-      - JDBC_URL=jdbc:mysql://localhost:3306/bitbucketdb?useUnicode=true&characterEncoding=UTF8&sessionVariables=default_storage_engine=InnoDB&autoReconnect=true&useSSL=false
+      - JDBC_URL=jdbc:mysql://mysql:3306/bitbucketdb?useUnicode=true&characterEncoding=UTF8&sessionVariables=default_storage_engine=InnoDB&autoReconnect=true&useSSL=false
       - JDBC_USER=atlassian
       - SERVER_PROXY_NAME=bitbucket.${DOMAIN_ROOT:-.localhost}
       - SERVER_PROXY_PORT=443
@@ -45,7 +45,7 @@ services:
       - ATL_DB_DRIVER=com.mysql.jdbc.Driver
       - ATL_DB_TYPE=mysql
       - ATL_JDBC_PASSWORD=${PASSWORD}
-      - ATL_JDBC_URL=jdbc:mysql://localhost:3306/confluencedb?useUnicode=true&autoReconnect=true&useSSL=false
+      - ATL_JDBC_URL=jdbc:mysql://mysql:3306/confluencedb?useUnicode=true&autoReconnect=true&useSSL=false
       - ATL_JDBC_USER=atlassian
       - ATL_PROXY_NAME=confluence.${DOMAIN_ROOT:-.localhost}
       - ATL_PROXY_PORT=443
@@ -81,7 +81,7 @@ services:
       - ATL_DB_DRIVER=com.mysql.jdbc.Driver
       - ATL_DB_TYPE=mysql
       - ATL_JDBC_PASSWORD=${PASSWORD}
-      - ATL_JDBC_URL=jdbc:mysql://localhost:3306/jiradb?useUnicode=true&autoReconnect=true&useSSL=false
+      - ATL_JDBC_URL=jdbc:mysql://mysql:3306/jiradb?useUnicode=true&autoReconnect=true&useSSL=false
       - ATL_JDBC_USER=atlassian
       - ATL_PROXY_NAME=jira.${DOMAIN_ROOT:-.localhost}
       - ATL_PROXY_PORT=443
