@@ -1,0 +1,17 @@
+[mysqld]
+# MySQL used for Atlassian services
+
+# Atlassian Service Requirements
+binlog_format=row
+character_set_server=utf8mb4
+collation_server=utf8mb4_bin
+default_storage_engine=INNODB
+innodb_log_file_size=2G
+log-bin-trust-function-creators=1
+max_allowed_packet=256M
+transaction_isolation=READ-COMMITTED
+
+# InnoDB Configuration
+innodb_default_row_format=DYNAMIC
+innodb_file_per_table=ON
+lower_case_table_names=0

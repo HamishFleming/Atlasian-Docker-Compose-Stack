@@ -9,8 +9,8 @@ services:
       - JDBC_USER=atlassian
       - SERVER_PROXY_NAME=bitbucket.${DOMAIN_ROOT:-.localhost}
       - SERVER_PROXY_PORT=443
-      - SERVER_SCHEME=https
-      - SERVER_SECURE=true
+      - SERVER_SCHEME=http
+      - SERVER_SECURE=false
     depends_on:
       - mysql
     healthcheck:
@@ -49,11 +49,11 @@ services:
     container_name: Confluence
     env_file: .env
     environment:
-      #- ATL_DB_DRIVER=com.mysql.jdbc.Driver
-      - JDBC_URL=jdbc:mysql://mysql:3306/confluencedb?useUnicode=true&characterEncoding=UTF8&sessionVariables=default_storage_engine=InnoDB&autoReconnect=true&useSSL=false
+      - ATL_DB_DRIVER=com.mysql.jdbc.Driver
+      # - JDBC_URL=jdbc:mysql://mysql:3306/confluencedb?useUnicode=true&characterEncoding=UTF8&sessionVariables=default_storage_engine=InnoDB&autoReconnect=true&useSSL=false
       - ATL_DB_TYPE=mysql
       - ATL_JDBC_PASSWORD=${PASSWORD}
-      - ATL_JDBC_URL=jdbc:mysql://mysql:3306/confluencedb?useUnicode=true&autoReconnect=true&useSSL=false
+      - ATL_JDBC_URL=jdbc:mysql://localhost:3306/confluencedb?useUnicode=true&autoReconnect=true&useSSL=false
       - ATL_JDBC_USER=atlassian
       - ATL_PROXY_NAME=confluence.${DOMAIN_ROOT:-.localhost}
       - ATL_PROXY_PORT=443
@@ -100,8 +100,8 @@ services:
       # - ATL_PROXY_PORT=88
       - ATL_PROXY_PORT=443
       - ATL_TOMCAT_PORT=8080
-      - ATL_TOMCAT_SCHEME=https
-      - ATL_TOMCAT_SECURE=true
+      - ATL_TOMCAT_SCHEME=http
+      - ATL_TOMCAT_SECURE=false
     depends_on:
       - mysql
     healthcheck:
@@ -141,19 +141,17 @@ services:
       start_period: 1m
       timeout: 10s
     image: 'mysql:latest'
-    networks:
-      - default
     # ports:
       # - '3306:3306'
     restart: unless-stopped
+    networks:
+      - default
     volumes:
       - ./mysql:/var/lib/mysql:rw
       - ./configuration/conf.d/mysql.cnf:/etc/mysql/conf.d/my.cnf:rw
 
 networks:
   default:
-    external:
-      name: bridge
   traefik:
     external: true
-    name: traf-external
+    name: reverse-proxy-docker-traefik_routing
