@@ -1,43 +1,15 @@
 version: "3.3"
 
 services:
-  traefik:
-    image: "traefik:v2.2"
-    container_name: "traefik"
-    command:
-      #- "--log.level=DEBUG"
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.bitbucket-ssh.address=:7999"
-      - "--entrypoints.web.address=:443"
-      - "--certificatesresolvers.route53.acme.dnschallenge=true"
-      - "--certificatesresolvers.route53.acme.dnschallenge.provider=route53"
-      - "--certificatesresolvers.route53.acme.storage=/letsencrypt/acme.json"
-      - "--certificatesresolvers.route53.acme.email=${AWS_ACCOUNT_EMAIL}"
-    environment:
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-    ports:
-      - "443:443"
-      - "8080:8080"
-      - "7999:7999"
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - letsencrypt:/letsencrypt
-    restart: unless-stopped
-    depends_on:
-      - bitbucket
-    stop_grace_period: 30s
   postgres:
     image: postgres:9.5-alpine
     container_name: postgres-bitbucket
     ports:
-      - ${BITBUCKET_DB_PORT}:5432
+      - 5432:5432
     environment:
-      POSTGRES_DB: ${BITBUCKET_DB:-bitbucket}
-      POSTGRES_USER: ${BITBUCKET_DB_USER:-bitbucket}
-      POSTGRES_PASSWORD: ${BITBUCKET_DB_PASSWORD:-""}
+      POSTGRES_DB: bitbucket #${BITBUCKET_DB:-bitbucket}
+      POSTGRES_USER: bitbucket #${BITBUCKET_DB_USER:-bitbucket}
+      POSTGRES_PASSWORD: "" #${BITBUCKET_DB_PASSWORD:-""}
     volumes:
       - db:/var/lib/postgresql/data
     restart: unless-stopped
@@ -58,7 +30,7 @@ services:
     labels:
       - "traefik.enable=true"
       # Web
-      - "traefik.http.routers.router1.rule=Host(`$SERVER_PROXY_NAME`)"
+      - "traefik.http.routers.router1.rule=Host(`bitbucket.wide.arpa`)"
       - "traefik.http.routers.router1.tls=true"
       - "traefik.http.routers.router1.tls.certresolver=route53"
       - "traefik.http.routers.router1.entrypoints=web"
@@ -70,10 +42,10 @@ services:
       - "traefik.tcp.routers.router2.service=bitbucket-ssh"
       - "traefik.tcp.services.bitbucket-ssh.loadbalancer.server.port=7999"
     environment:
-      SERVER_PROXY_NAME: ${SERVER_PROXY_NAME}
-      SERVER_PROXY_PORT: ${SERVER_PROXY_PORT}
-      SERVER_SCHEME: ${SERVER_SCHEME}
-      SERVER_SECURE: ${SERVER_SECURE}
+      SERVER_PROXY_NAME: bitbucket.wide.arpa
+      SERVER_PROXY_PORT: 666
+      SERVER_SCHEME: http
+      SERVER_SECURE: false
       JVM_MINIMUM_MEMORY: ${JVM_MINIMUM_MEMORY:-512m}
       JVM_MAXIMUM_MEMORY: ${JVM_MAXIMUM_MEMORY:-1024m}
     volumes:
