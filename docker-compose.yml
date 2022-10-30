@@ -1,162 +1,165 @@
-version: '3'
-services:
-  atlassian-bitbucket:
-    container_name: Bitbucket
-    env_file: .env
-    environment:
-      - JDBC_PASSWORD=${PASSWORD}
-      - JDBC_URL=jdbc:mysql://mysql:3306/bitbucketdb?useUnicode=true&characterEncoding=UTF8&sessionVariables=default_storage_engine=InnoDB&autoReconnect=true&useSSL=false
-      - JDBC_USER=atlassian
-      - SERVER_PROXY_NAME=bitbucket.${DOMAIN_ROOT:-.localhost}
-      - SERVER_PROXY_PORT=443
-      - SERVER_SCHEME=http
-      - SERVER_SECURE=false
-    depends_on:
-      - mysql
-    healthcheck:
-      test: 'curl localhost:7990/status | grep -q RUNNING'
-      interval: 1m
-      start_period: 10m
-      timeout: 10s
-    image: 'atlassian/bitbucket:latest'
-    networks:
-      - traefik
-      - default
-    #network_mode: bridge
-    # ports:
-    #   - '7990:7990'
-    #   - '7999:7999'
-    restart: unless-stopped
-    volumes:
-      - ./bitbucket:/var/atlassian/application-data/bitbucket:rw
-      - ./configuration/mysql-connector-java-5.1.48-bin.jar:/var/atlassian/application-data/bitbucket/lib/mysql-connector-java-5.1.48-bin.jar:rw
-    labels:
-      - "traefik.enable=true"
-      # Web
-      - "traefik.http.routers.bitbucket.rule=Host(`bitbucket.${DOMAIN_ROOT:-.localhost}`)"
-      - "traefik.http.routers.bitbucket.tls=true"
-      - "traefik.http.routers.bitbucket.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.bitbucket.entrypoints=web,websecure"
-      - "traefik.http.routers.bitbucket.service=bitbucket-web"
-      - "traefik.http.services.bitbucket-web.loadbalancer.server.port=7990"
-      # SSH
-      - "traefik.tcp.routers.bitbucket-ssh.rule=HostSNI(`*`)"
-      - "traefik.tcp.routers.bitbucket-ssh.entrypoints=bitbucket-ssh"
-      - "traefik.tcp.routers.bitbucket-ssh.service=bitbucket-ssh"
-      - "traefik.tcp.services.bitbucket-ssh.loadbalancer.server.port=7999"
+version: '3.7'
 
-  atlassian-confluence:
-    container_name: Confluence
-    env_file: .env
-    environment:
-      # - ATL_DB_DRIVER=com.mysql.jdbc.Driver
-      # - JDBC_URL=jdbc:mysql://mysql:3306/confluencedb?useUnicode=true&characterEncoding=UTF8&sessionVariables=default_storage_engine=InnoDB&autoReconnect=true&useSSL=false
-      - ATL_DB_TYPE=mysql
-      - ATL_DB_DRIVER=com.mysql.cj.jdbc.Driver
-      - ATL_DB_SCHEMA_NAME=jiradb
-      - ATL_JDBC_URL=jdbc:mysql://localhost:3306/confluencedb
-      - ATL_JDBC_USER=atlassian
-      - ATL_JDBC_PASSWORD=${PASSWORD}
-      # - ATL_PROXY_NAME=confluence.${DOMAIN_ROOT:-.localhost}
-      # - ATL_PROXY_PORT=443
-      # - ATL_TOMCAT_PORT=8090
-      # - ATL_TOMCAT_SCHEME=http
-      # - ATL_TOMCAT_SECURE=false
-    depends_on:
-      - mysql
-    healthcheck:
-      test: 'curl localhost:8090/status | grep -q RUNNING'
-      interval: 1m
-      start_period: 10m
-      timeout: 10s
-    image: 'atlassian/confluence:latest'
-    networks:
-      - traefik
-      - default
-    # network_mode: bridge
-    ports:
-      - '8090:8090'
-      - '8091:8091'
+services:
+  ### BEGIN PROXY/CERTBOT/SITE/CICD###
+  nginx:
+    image: nginx:1.15.9-alpine
+    container_name: dle-nginx
     restart: unless-stopped
     volumes:
-      - ./confluence:/var/atlassian/application-data/confluence:rw
-      - ./configuration/mysql-connector-java-8.0.21.jar:/opt/atlassian/confluence/confluence/WEB-INF/lib/mysql-connector-java-8.0.21.jar
-      - ./confluence/logs:/opt/atlassian/confluence/logs:rw
+      - ./data/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    networks:
+      - default
+      - traefik
+    # ports:
+    #   - "80:80"
+    #   - "443:443"
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+  certbot:
+    image: certbot/certbot
+    container_name: dle-certbot
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    depends_on:
+      - nginx
+  # site:
+  #   image: dle-site:0.0.3
+  #   restart: unless-stopped
+  #   container_name: dle-site
+  #   expose:
+  #     - 80
+  #   depends_on:
+  #     - nginx
+  #     - certbot
+  # cicd:
+  #   image: dle-cicd:0.0.2
+  #   restart: unless-stopped
+  #   container_name: dle-cicd
+  #   expose:
+  #     - 80
+  #   depends_on:
+  #     - nginx
+  #     - certbot
+
+  ### BEGIN JIRA ###
+  jira:
+    image: dchevell/jira-software:8.0.2
+    container_name: dle-jira
+    restart: unless-stopped
+    environment:
+      - CATALINA_CONNECTOR_PROXYNAME=${JIRA_DOMAIN}
+      - CATALINA_CONNECTOR_PROXYPORT=443
+      - CATALINA_CONNECTOR_SCHEME=https
+      - CATALINA_CONNECTOR_SECURE=true
+    expose:
+      - 8080
+    volumes:
+      - jira-data:/var/atlassian/application-data/jira
     labels:
       - traefik.enable=true
-      - traefik.http.routers.confluence.rule=Host(`confluence.${DOMAIN_ROOT:-.localhost}`)
-      - traefik.http.routers.confluence.service=confluence
-
-  atlassian-jira:
-    container_name: Jira
-    env_file: .env
-    environment:
-      - ATL_DB_DRIVER=com.mysql.jdbc.Driver
-      - ATL_DB_TYPE=mysql
-      - ATL_JDBC_PASSWORD=${PASSWORD}
-      - ATL_JDBC_URL=jdbc:mysql://mysql:3306/jiradb?useUnicode=true&autoReconnect=true&useSSL=false
-      - ATL_JDBC_USER=atlassian
-      - ATL_PROXY_NAME=jira.${DOMAIN_ROOT:-.localhost}
-      # - ATL_PROXY_PORT=88
-      - ATL_PROXY_PORT=443
-      - ATL_TOMCAT_PORT=8080
-      - ATL_TOMCAT_SCHEME=http
-      - ATL_TOMCAT_SECURE=false
+      - traefik.backend=jira
+      - traefik.frontend.rule=Host:${JIRA_DOMAIN}
+      - traefik.port=8080
     depends_on:
-      - mysql
-    healthcheck:
-      test: 'curl localhost:8080/status | grep -q RUNNING'
-      interval: 1m
-      start_period: 10m
-      timeout: 10s
-    image: 'atlassian/jira-software:latest'
-    networks:
-      - traefik
-      - default
-    ports:
-      - '88:8080'
+      - jira-db
+      - nginx
+      - certbot
+  jira-db:
+    image: postgres:9.6
+    container_name: dle-jira-db
     restart: unless-stopped
+    expose:
+      - 5001
+    command: -p 5001
     volumes:
-      - ./jira:/var/atlassian/application-data/jira:rw
-      - ./configuration/mysql-connector-java-8.0.21.jar:/opt/atlassian/jira/lib/mysql-connector-java-8.0.21.jar:rw
-      - ./jira/log:/opt/atlassian/jira/logs:rw
-    labels:
-      - "traefik.enable=true"
-      # Web
-      - "traefik.http.routers.jira.rule=Host(`jira.${DOMAIN_ROOT:-.localhost}`)"
-      - "traefik.http.routers.jira.tls=true"
-      - "traefik.http.routers.jira.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.jira.entrypoints=websecure"
-      - "traefik.http.routers.jira.service=jira-web"
-      - "traefik.http.services.jira-web.loadbalancer.server.port=443"
-
-  mysql:
-    container_name: MySQL
-    env_file: .env
+      - jira-data-db:/var/lib/postgresql/data
     environment:
-      - MYSQL_ROOT_PASSWORD=${PASSWORD}
-      - MYSQL_ROOT_USER=root
-      #- MYSQL_DATABASE=jiradb
-      - MYSQL_USER=atlassian
-      - MYSQL_PASSWORD=${PASSWORD}
-    healthcheck:
-      test: '/usr/bin/mysql --user=healthcheck --password=healthcheck --execute "SHOW DATABASES;"'
-      interval: 1m
-      start_period: 1m
-      timeout: 10s
-    image: 'mysql:latest'
-    ports:
-      - '3306:3306'
+      - POSTGRES_PASSWORD=${JIRA_DB_PASSWORD}
+      - POSTGRES_USER=${JIRA_DB_USER}
+      - POSTGRES_DB=${JIRA_DB}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+
+#  ### BEGIN BITBUCKET ###
+  bitbucket:
+    container_name: dle-bitbucket
+    image: atlassian/bitbucket-server
     restart: unless-stopped
-    networks:
-      - default
-    command: [mysqld, --character-set-server=utf8, --collation-server=utf8_bin, --default-storage-engine=INNODB, --max_allowed_packet=256M, --innodb_log_file_size=2GB, --transaction-isolation=READ-COMMITTED, --binlog_format=row]
     volumes:
-      - ./mysql:/var/lib/mysql:rw
-      - ./configuration/conf.d/mysql.cnf:/etc/mysql/conf.d/my.cnf:rw
-      - ./configuration/mysql:/docker-entrypoint-initdb.d
+      - bitbucket-data:/var/atlassian/application-data/bitbucket
+    expose:
+      - 7990
+      - 7999
+    environment:
+      - SERVER_SECURE=true
+      - SERVER_SCHEME=https
+      - SERVER_PROXY_PORT=443
+      - SERVER_PROXY_NAME=${BITBUCKET_DOMAIN}
+      - BITBUCKET_HOME=/var/atlassian/application-data/bitbucket/
+    depends_on:
+      - bitbucket-db
+      - nginx
+      - certbot
+  bitbucket-db:
+    image: postgres:9.6
+    container_name: dle-bitbucket-db
+    restart: unless-stopped
+    expose:
+      - 5000
+    command: -p 5000
+    volumes:
+      - bitbucket-data-db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=${BITBUCKET_DB_PASSWORD}
+      - POSTGRES_USER=${BITBUCKET_DB_USER}
+      - POSTGRES_DB=${BITBUCKET_DB}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+
+  ### BEGIN BAMBOO ##
+  bamboo:
+    container_name: dle-bamboo
+    image: dchevell/bamboo
+    restart: unless-stopped
+    volumes:
+      - bamboo-data:/var/atlassian/application-data/bamboo
+    expose:
+      - 54663
+      - 8085
+    environment:
+      - CATALINA_CONNECTOR_PROXYNAME=${BAMBOO_DOMAIN}
+      - CATALINA_CONNECTOR_PROXYPORT=443
+      - CATALINA_CONNECTOR_SCHEME=https
+      - CATALINA_CONNECTOR_SECURE=true
+    depends_on:
+      - bamboo-db
+      - nginx
+      - certbot
+  bamboo-db:
+    image: postgres:9.6
+    container_name: dle-bamboo-db
+    restart: unless-stopped
+    expose:
+      - 5002
+    command: -p 5002
+    volumes:
+      - bamboo-data-db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=${BAMBOO_DB_PASSWORD}
+      - POSTGRES_USER=${BAMBOO_DB_USER}
+      - POSTGRES_DB=${BAMBOO_DB}
+      - PGDATA=/var/lib/postgresql/data/pgdata
 
 
+volumes:
+  jira-data:
+  jira-data-db:
+  bitbucket-data:
+  bitbucket-data-db:
+  bamboo-data:
+  bamboo-data-db:
 networks:
   default:
   traefik:
