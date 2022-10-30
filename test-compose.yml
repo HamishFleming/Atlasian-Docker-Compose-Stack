@@ -1,0 +1,154 @@
+version: '3.7'
+
+services:
+  ### BEGIN PROXY/CERTBOT/SITE/CICD###
+  nginx:
+    image: nginx:1.15.9-alpine
+    container_name: dle-nginx
+    restart: unless-stopped
+    volumes:
+      - ./data/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    ports:
+      - "80:80"
+      - "443:443"
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+  certbot:
+    image: certbot/certbot
+    container_name: dle-certbot
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    depends_on:
+      - nginx
+  site:
+    image: dle-site:0.0.3
+    restart: unless-stopped
+    container_name: dle-site
+    expose:
+      - 80
+    depends_on:
+      - nginx
+      - certbot
+  cicd:
+    image: dle-cicd:0.0.2
+    restart: unless-stopped
+    container_name: dle-cicd
+    expose:
+      - 80
+    depends_on:
+      - nginx
+      - certbot
+
+  ### BEGIN JIRA ###
+  jira:
+    image: dchevell/jira-software:8.0.2
+    container_name: dle-jira
+    restart: unless-stopped
+    environment:
+      - CATALINA_CONNECTOR_PROXYNAME=${JIRA_DOMAIN}
+      - CATALINA_CONNECTOR_PROXYPORT=443
+      - CATALINA_CONNECTOR_SCHEME=https
+      - CATALINA_CONNECTOR_SECURE=true
+    expose:
+      - 8080
+    volumes:
+      - jira-data:/var/atlassian/application-data/jira
+    depends_on:
+      - jira-db
+      - nginx
+      - certbot
+  jira-db:
+    image: postgres:9.6
+    container_name: dle-jira-db
+    restart: unless-stopped
+    expose:
+      - 5001
+    command: -p 5001
+    volumes:
+      - jira-data-db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=${JIRA_DB_PASSWORD}
+      - POSTGRES_USER=${JIRA_DB_USER}
+      - POSTGRES_DB=${JIRA_DB}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+
+#  ### BEGIN BITBUCKET ###
+  bitbucket:
+    container_name: dle-bitbucket
+    image: atlassian/bitbucket-server
+    restart: unless-stopped
+    volumes:
+      - bitbucket-data:/var/atlassian/application-data/bitbucket
+    expose:
+      - 7990
+      - 7999
+    environment:
+      - SERVER_SECURE=true
+      - SERVER_SCHEME=https
+      - SERVER_PROXY_PORT=443
+      - SERVER_PROXY_NAME=${BITBUCKET_DOMAIN}
+      - BITBUCKET_HOME=/var/atlassian/application-data/bitbucket/
+    depends_on:
+      - bitbucket-db
+      - nginx
+      - certbot
+  bitbucket-db:
+    image: postgres:9.6
+    container_name: dle-bitbucket-db
+    restart: unless-stopped
+    expose:
+      - 5000
+    command: -p 5000
+    volumes:
+      - bitbucket-data-db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=${BITBUCKET_DB_PASSWORD}
+      - POSTGRES_USER=${BITBUCKET_DB_USER}
+      - POSTGRES_DB=${BITBUCKET_DB}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+
+  ### BEGIN BAMBOO ##
+  bamboo:
+    container_name: dle-bamboo
+    image: dchevell/bamboo
+    restart: unless-stopped
+    volumes:
+      - bamboo-data:/var/atlassian/application-data/bamboo
+    expose:
+      - 54663
+      - 8085
+    environment:
+      - CATALINA_CONNECTOR_PROXYNAME=${BAMBOO_DOMAIN}
+      - CATALINA_CONNECTOR_PROXYPORT=443
+      - CATALINA_CONNECTOR_SCHEME=https
+      - CATALINA_CONNECTOR_SECURE=true
+    depends_on:
+      - bamboo-db
+      - nginx
+      - certbot
+  bamboo-db:
+    image: postgres:9.6
+    container_name: dle-bamboo-db
+    restart: unless-stopped
+    expose:
+      - 5002
+    command: -p 5002
+    volumes:
+      - bamboo-data-db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=${BAMBOO_DB_PASSWORD}
+      - POSTGRES_USER=${BAMBOO_DB_USER}
+      - POSTGRES_DB=${BAMBOO_DB}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+
+
+volumes:
+  jira-data:
+  jira-data-db:
+  bitbucket-data:
+  bitbucket-data-db:
+  bamboo-data:
+  bamboo-data-db:
